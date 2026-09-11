@@ -113,6 +113,21 @@
   .msg .meta{font-size:0.72rem; opacity:0.7; margin-bottom:3px;}
   .msg.mine{align-self:flex-end; background:var(--sage); color:var(--white); border-bottom-right-radius:2px;}
   .msg.other{align-self:flex-start; background:var(--sand); border-bottom-left-radius:2px;}
+  .msg.traite{opacity:0.5;}
+  .msg-text{white-space:pre-wrap; word-break:break-word;}
+  .msg-controls{
+    display:flex; align-items:center; gap:10px; margin-top:5px; font-size:0.72rem; opacity:0.85;
+  }
+  .msg-controls label{display:flex; align-items:center; gap:4px; cursor:pointer;}
+  .msg-controls input[type="checkbox"]{margin:0; cursor:pointer;}
+  .msg-edit-btn{
+    background:none; border:none; padding:0; font-family:inherit; font-size:0.72rem;
+    text-decoration:underline; color:inherit; cursor:pointer;
+  }
+  textarea.msg-edit-textarea{
+    width:100%; font-family:inherit; font-size:0.9rem; border-radius:6px; padding:6px;
+    resize:vertical; margin:2px 0; border:1px solid var(--sand-dark); color:var(--ink);
+  }
   .compose textarea{
     width:100%; min-height:64px; border:1px solid var(--sand-dark); border-radius:8px;
     padding:9px; font-family:inherit; font-size:0.9rem; resize:vertical;
@@ -415,15 +430,90 @@ function renderMessages(messages) {
     const mine = viewerIsAdmin
       ? m.auteur_type === 'alex'
       : (m.auteur_type === 'responsable' && m.auteur_nom === viewerNom);
+
     const div = document.createElement('div');
     div.className = 'msg ' + (mine ? 'mine' : 'other');
-    div.innerHTML = `
-      <div class="meta">${escapeHtml(m.auteur_nom)} · ${formatDateTime(m.date)}</div>
-      <div>${escapeHtml(m.texte)}</div>
-    `;
+    if (m.traite) div.classList.add('traite');
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = `${m.auteur_nom} · ${formatDateTime(m.date)}` + (m.modifie ? ' · modifié' : '');
+
+    const texteEl = document.createElement('div');
+    texteEl.className = 'msg-text';
+    texteEl.textContent = m.texte;
+
+    const controls = document.createElement('div');
+    controls.className = 'msg-controls';
+
+    const traiteLabel = document.createElement('label');
+    const traiteCheckbox = document.createElement('input');
+    traiteCheckbox.type = 'checkbox';
+    traiteCheckbox.checked = !!m.traite;
+    traiteCheckbox.addEventListener('change', async () => {
+      const val = traiteCheckbox.checked;
+      try {
+        await apiPost({ action: 'toggleMessageTraite', sessionId: currentSessionId, messageId: m.id, traite: val });
+        m.traite = val;
+        div.classList.toggle('traite', val);
+      } catch (err) {
+        traiteCheckbox.checked = !val;
+        alert('Erreur : ' + err.message);
+      }
+    });
+    traiteLabel.appendChild(traiteCheckbox);
+    traiteLabel.appendChild(document.createTextNode('Traité'));
+    controls.appendChild(traiteLabel);
+
+    if (mine) {
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'msg-edit-btn';
+      editBtn.textContent = 'Modifier';
+      editBtn.addEventListener('click', () => startEditMessage(div, texteEl, meta, m));
+      controls.appendChild(editBtn);
+    }
+
+    div.appendChild(meta);
+    div.appendChild(texteEl);
+    div.appendChild(controls);
     list.appendChild(div);
   });
   list.scrollTop = list.scrollHeight;
+}
+
+function startEditMessage(div, texteEl, meta, m) {
+  const textarea = document.createElement('textarea');
+  textarea.className = 'msg-edit-textarea';
+  textarea.value = m.texte;
+  div.replaceChild(textarea, texteEl);
+  textarea.focus();
+
+  const terminerEdition = async () => {
+    const nouveauTexte = textarea.value.trim();
+    if (nouveauTexte && nouveauTexte !== m.texte) {
+      try {
+        await apiPost({ action: 'updateMessage', sessionId: currentSessionId, messageId: m.id, texte: nouveauTexte });
+        m.texte = nouveauTexte;
+        m.modifie = true;
+        meta.textContent = `${m.auteur_nom} · ${formatDateTime(m.date)} · modifié`;
+      } catch (err) {
+        alert('Erreur : ' + err.message);
+      }
+    }
+    const nouveauTexteEl = document.createElement('div');
+    nouveauTexteEl.className = 'msg-text';
+    nouveauTexteEl.textContent = m.texte;
+    div.replaceChild(nouveauTexteEl, textarea);
+  };
+
+  textarea.addEventListener('blur', terminerEdition);
+  textarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      textarea.blur();
+    }
+  });
 }
 
 async function sendMessage() {
