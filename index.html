@@ -56,6 +56,7 @@
     margin-bottom:20px;
   }
   .session-header .meta{color:var(--ink-light); font-size:0.92rem; margin-top:4px;}
+  .header-links{display:flex; gap:8px; flex-wrap:wrap;}
   .devoirs-link{
     display:inline-block; background:var(--terra); color:var(--white); text-decoration:none;
     padding:9px 16px; border-radius:8px; font-size:0.9rem; font-weight:500; white-space:nowrap;
@@ -85,6 +86,7 @@
   }
   .stagiaire-card-header h4{
     font-family:'Work Sans',sans-serif; font-weight:600; font-size:0.95rem;
+    margin:0; min-width:0; word-break:break-word;
   }
   .stagiaire-card-header .chevron{color:var(--ink-light); font-size:0.8rem; transition:transform .15s;}
   .stagiaire-card.open .chevron{transform:rotate(90deg);}
@@ -169,7 +171,11 @@
         <h2 id="detailTitle"></h2>
         <div class="meta" id="detailMeta"></div>
       </div>
-      <a href="#" id="devoirsLink" class="devoirs-link hidden" target="_blank" rel="noopener">📁 Dossier des devoirs rendus</a>
+      <div class="header-links">
+        <a href="#" id="devoirsLink" class="devoirs-link hidden" target="_blank" rel="noopener">📁 Devoirs rendus</a>
+        <a href="#" id="trombiLink" class="devoirs-link hidden" target="_blank" rel="noopener">🖼️ Trombinoscope</a>
+        <a href="#" id="planningLink" class="devoirs-link hidden" target="_blank" rel="noopener">🗓️ Planning</a>
+      </div>
     </div>
 
     <div class="layout">
@@ -309,16 +315,22 @@ function renderSessionDetail(data) {
   el('detailTitle').textContent = session.formation;
   el('detailMeta').textContent = `${session.site || ''} · ${formatDateRange(session.date_debut, session.date_fin)}`;
 
-  const devoirsLink = el('devoirsLink');
-  if (session.lien_devoirs) {
-    devoirsLink.href = session.lien_devoirs;
-    devoirsLink.classList.remove('hidden');
-  } else {
-    devoirsLink.classList.add('hidden');
-  }
+  setHeaderLink('devoirsLink', session.lien_devoirs);
+  setHeaderLink('trombiLink', session.lien_trombinoscope);
+  setHeaderLink('planningLink', session.lien_planning);
 
   renderStagiaires(stagiaires, data.notes || []);
   renderMessages(messages);
+}
+
+function setHeaderLink(elementId, url) {
+  const link = el(elementId);
+  if (url) {
+    link.href = url;
+    link.classList.remove('hidden');
+  } else {
+    link.classList.add('hidden');
+  }
 }
 
 function renderStagiaires(stagiaires, notes) {
