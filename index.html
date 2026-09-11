@@ -79,7 +79,7 @@
     display:flex; flex-direction:column; gap:10px;
     max-height:460px; overflow-y:auto; padding-right:4px;
   }
-  .stagiaire-card{background:var(--sand); border-radius:10px; overflow:hidden;}
+  .stagiaire-card{background:var(--sand); border-radius:10px;}
   .stagiaire-card-header{
     display:flex; justify-content:space-between; align-items:center; gap:10px;
     padding:12px 16px; cursor:pointer; user-select:none;
@@ -339,6 +339,15 @@ function renderStagiaires(stagiaires, notes) {
   const list = el('stagiairesList');
   list.innerHTML = '';
 
+  if (stagiaires.length === 0) {
+    const p = document.createElement('p');
+    p.style.color = 'var(--ink-light)';
+    p.textContent = 'Aucun stagiaire pour cette session.';
+    list.appendChild(p);
+    el('stagiaireSearch').value = '';
+    return;
+  }
+
   stagiaires.forEach((st) => {
     const nomComplet = `${st.prenom || ''} ${st.nom || ''}`.trim();
     const notesDuStagiaire = notes.filter((n) => String(n.stagiaire_id) === String(st.id));
@@ -346,25 +355,42 @@ function renderStagiaires(stagiaires, notes) {
     const card = document.createElement('div');
     card.className = 'stagiaire-card';
     card.dataset.nom = nomComplet.toLowerCase();
-    card.innerHTML = `
-      <div class="stagiaire-card-header">
-        <h4>${escapeHtml(nomComplet)}${notesDuStagiaire.length > 0 ? `<span class="note-badge">${notesDuStagiaire.length}</span>` : ''}</h4>
-        <span class="chevron">▶</span>
-      </div>
-      <div class="stagiaire-card-body">
-        <div class="notes-list"></div>
-        <button type="button" class="add-note-btn" style="margin-top:10px;">+ Ajouter une info</button>
-      </div>
-    `;
 
-    card.querySelector('.stagiaire-card-header').addEventListener('click', () => {
-      card.classList.toggle('open');
-    });
+    // --- en-tête (toujours visible, construit élément par élément) ---
+    const header = document.createElement('div');
+    header.className = 'stagiaire-card-header';
 
-    const notesList = card.querySelector('.notes-list');
+    const h4 = document.createElement('h4');
+    h4.appendChild(document.createTextNode(nomComplet || '(sans nom)'));
+    if (notesDuStagiaire.length > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'note-badge';
+      badge.textContent = String(notesDuStagiaire.length);
+      h4.appendChild(badge);
+    }
+
+    const chevron = document.createElement('span');
+    chevron.className = 'chevron';
+    chevron.textContent = '▶';
+
+    header.appendChild(h4);
+    header.appendChild(chevron);
+    header.addEventListener('click', () => card.classList.toggle('open'));
+
+    // --- corps (notes, replié par défaut) ---
+    const body = document.createElement('div');
+    body.className = 'stagiaire-card-body';
+
+    const notesList = document.createElement('div');
+    notesList.className = 'notes-list';
     notesDuStagiaire.forEach((n) => addNoteItemToDom(notesList, n.id, n.texte));
 
-    card.querySelector('.add-note-btn').addEventListener('click', async (e) => {
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'add-note-btn';
+    addBtn.style.marginTop = '10px';
+    addBtn.textContent = '+ Ajouter une info';
+    addBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       try {
         const res = await apiPost({ action: 'addNote', sessionId: currentSessionId, stagiaireId: st.id, texte: '' });
@@ -375,12 +401,13 @@ function renderStagiaires(stagiaires, notes) {
       }
     });
 
+    body.appendChild(notesList);
+    body.appendChild(addBtn);
+
+    card.appendChild(header);
+    card.appendChild(body);
     list.appendChild(card);
   });
-
-  if (stagiaires.length === 0) {
-    list.innerHTML = '<p style="color:var(--ink-light)">Aucun stagiaire pour cette session.</p>';
-  }
 
   el('stagiaireSearch').value = '';
 }
@@ -397,17 +424,30 @@ function filtrerStagiaires(terme) {
 function addNoteItemToDom(notesList, noteId, texte) {
   const item = document.createElement('div');
   item.className = 'note-item';
-  item.innerHTML = `
-    <div style="flex:1;">
-      <textarea placeholder="Ex. manque TS ou CGV signé…">${escapeHtml(texte || '')}</textarea>
-      <div class="note-status"></div>
-    </div>
-    <button type="button" class="note-delete-btn" title="Supprimer cette info">✕</button>
-  `;
+
+  const wrap = document.createElement('div');
+  wrap.style.flex = '1';
+
+  const textarea = document.createElement('textarea');
+  textarea.placeholder = 'Ex. manque TS ou CGV signé…';
+  textarea.value = texte || '';
+
+  const status = document.createElement('div');
+  status.className = 'note-status';
+
+  wrap.appendChild(textarea);
+  wrap.appendChild(status);
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.type = 'button';
+  deleteBtn.className = 'note-delete-btn';
+  deleteBtn.title = 'Supprimer cette info';
+  deleteBtn.textContent = '✕';
+
+  item.appendChild(wrap);
+  item.appendChild(deleteBtn);
   notesList.appendChild(item);
 
-  const textarea = item.querySelector('textarea');
-  const status = item.querySelector('.note-status');
   let timer;
   textarea.addEventListener('input', () => {
     clearTimeout(timer);
@@ -415,7 +455,7 @@ function addNoteItemToDom(notesList, noteId, texte) {
     timer = setTimeout(() => saveNoteItem(noteId, textarea.value, status), 700);
   });
 
-  item.querySelector('.note-delete-btn').addEventListener('click', async () => {
+  deleteBtn.addEventListener('click', async () => {
     if (!confirm('Supprimer cette info ?')) return;
     try {
       await apiPost({ action: 'deleteNote', sessionId: currentSessionId, noteId });
