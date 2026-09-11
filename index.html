@@ -175,6 +175,7 @@
         <a href="#" id="devoirsLink" class="devoirs-link hidden" target="_blank" rel="noopener">📁 Devoirs rendus</a>
         <a href="#" id="trombiLink" class="devoirs-link hidden" target="_blank" rel="noopener">🖼️ Trombinoscope</a>
         <a href="#" id="planningLink" class="devoirs-link hidden" target="_blank" rel="noopener">🗓️ Planning</a>
+        <a href="#" id="assiduiteLink" class="devoirs-link hidden" target="_blank" rel="noopener">✅ Assiduité</a>
       </div>
     </div>
 
@@ -318,6 +319,7 @@ function renderSessionDetail(data) {
   setHeaderLink('devoirsLink', session.lien_devoirs);
   setHeaderLink('trombiLink', session.lien_trombinoscope);
   setHeaderLink('planningLink', session.lien_planning);
+  setHeaderLink('assiduiteLink', session.lien_assiduite);
 
   renderStagiaires(stagiaires, data.notes || []);
   renderMessages(messages);
