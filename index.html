@@ -177,6 +177,7 @@ const TOKEN = params.get('token');
 
 let currentSessionId = null;
 let viewerIsAdmin = false;
+let viewerNom = '';
 
 const el = (id) => document.getElementById(id);
 
@@ -219,6 +220,7 @@ async function init() {
   try {
     const data = await apiGet('getSessions');
     viewerIsAdmin = !!data.responsable.isAdmin;
+    viewerNom = data.responsable.nom;
     el('whoLabel').textContent = data.responsable.nom;
     renderSessionsList(data.sessions);
     showState('sessionsView');
@@ -325,7 +327,11 @@ function renderMessages(messages) {
   const list = el('messagesList');
   list.innerHTML = '';
   messages.forEach((m) => {
-    const mine = viewerIsAdmin ? m.auteur_type === 'alex' : m.auteur_type === 'responsable';
+    // Une session peut avoir plusieurs responsables : on compare aussi le nom
+    // pour que chacun ne voie ses propres messages qu'à droite, pas ceux d'un collègue.
+    const mine = viewerIsAdmin
+      ? m.auteur_type === 'alex'
+      : (m.auteur_type === 'responsable' && m.auteur_nom === viewerNom);
     const div = document.createElement('div');
     div.className = 'msg ' + (mine ? 'mine' : 'other');
     div.innerHTML = `
