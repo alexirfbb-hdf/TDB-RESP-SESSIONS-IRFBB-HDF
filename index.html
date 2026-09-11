@@ -68,20 +68,35 @@
   .panel{background:var(--white); border:1px solid var(--sand-dark); border-radius:12px; padding:18px;}
   .panel h2{font-size:1.05rem; color:var(--sage-dark); margin-bottom:12px;}
 
-  /* --- Table stagiaires --- */
-  table.stagiaires{width:100%; border-collapse:collapse;}
-  table.stagiaires th{
-    text-align:left; font-size:0.78rem; text-transform:uppercase; letter-spacing:.03em;
-    color:var(--ink-light); border-bottom:1px solid var(--sand-dark); padding:6px 8px;
+  /* --- Cartes stagiaires --- */
+  .stagiaires-list{display:flex; flex-direction:column; gap:14px;}
+  .stagiaire-card{
+    background:var(--sand); border-radius:10px; padding:14px 16px;
   }
-  table.stagiaires td{padding:8px; border-bottom:1px solid var(--sand); vertical-align:top;}
-  table.stagiaires td.nom{white-space:nowrap; font-weight:500; padding-top:12px;}
-  .note-field{
-    width:100%; min-height:38px; border:1px solid var(--sand-dark); border-radius:6px;
-    padding:7px 9px; font-family:inherit; font-size:0.9rem; resize:vertical; background:var(--sand);
+  .stagiaire-card h4{
+    font-family:'Work Sans',sans-serif; font-weight:600; font-size:0.98rem; margin-bottom:10px;
   }
-  .note-field:focus{outline:2px solid var(--sage); background:var(--white);}
-  .note-status{font-size:0.75rem; color:var(--sage-dark); height:14px; margin-top:3px;}
+  .notes-list{display:flex; flex-direction:column; gap:10px;}
+  .note-item{
+    background:var(--white); border:1px solid var(--sand-dark); border-radius:8px;
+    padding:10px 12px; display:flex; gap:8px; align-items:flex-start;
+  }
+  .note-item textarea{
+    flex:1; border:none; background:transparent; resize:vertical;
+    min-height:70px; font-family:inherit; font-size:0.95rem; line-height:1.4; padding:0;
+  }
+  .note-item textarea:focus{outline:none;}
+  .note-item .note-status{font-size:0.72rem; color:var(--sage-dark); margin-top:4px; height:14px;}
+  .note-delete-btn{
+    background:none; border:none; color:var(--ink-light); cursor:pointer;
+    font-size:1.1rem; line-height:1; padding:2px 4px; border-radius:4px; flex-shrink:0;
+  }
+  .note-delete-btn:hover{color:var(--danger); background:var(--sand);}
+  .add-note-btn{
+    background:none; border:1px dashed var(--sage); color:var(--sage-dark); border-radius:8px;
+    padding:9px 12px; font-family:inherit; font-size:0.86rem; cursor:pointer; width:100%; text-align:left;
+  }
+  .add-note-btn:hover{background:var(--white);}
 
   /* --- Messagerie --- */
   .messages-list{
@@ -140,10 +155,7 @@
     <div class="layout">
       <div class="panel">
         <h2>Stagiaires</h2>
-        <table class="stagiaires">
-          <thead><tr><th>Stagiaire</th><th>Note</th></tr></thead>
-          <tbody id="stagiairesBody"></tbody>
-        </table>
+        <div class="stagiaires-list" id="stagiairesList"></div>
       </div>
 
       <div class="panel">
@@ -284,38 +296,84 @@ function renderSessionDetail(data) {
     devoirsLink.classList.add('hidden');
   }
 
-  renderStagiaires(stagiaires);
+  renderStagiaires(stagiaires, data.notes || []);
   renderMessages(messages);
 }
 
-function renderStagiaires(stagiaires) {
-  const body = el('stagiairesBody');
-  body.innerHTML = '';
+function renderStagiaires(stagiaires, notes) {
+  const list = el('stagiairesList');
+  list.innerHTML = '';
+
   stagiaires.forEach((st) => {
-    const tr = document.createElement('tr');
     const nomComplet = `${st.prenom || ''} ${st.nom || ''}`.trim();
-    tr.innerHTML = `
-      <td class="nom">${escapeHtml(nomComplet)}</td>
-      <td>
-        <textarea class="note-field" data-id="${st.id}" placeholder="Rien à signaler">${escapeHtml(st.note || '')}</textarea>
-        <div class="note-status"></div>
-      </td>
+    const notesDuStagiaire = notes.filter((n) => String(n.stagiaire_id) === String(st.id));
+
+    const card = document.createElement('div');
+    card.className = 'stagiaire-card';
+    card.innerHTML = `
+      <h4>${escapeHtml(nomComplet)}</h4>
+      <div class="notes-list"></div>
+      <button type="button" class="add-note-btn" style="margin-top:10px;">+ Ajouter une info</button>
     `;
-    const textarea = tr.querySelector('textarea');
-    const status = tr.querySelector('.note-status');
-    let timer;
-    textarea.addEventListener('input', () => {
-      clearTimeout(timer);
-      status.textContent = '…';
-      timer = setTimeout(() => saveNote(st.id, textarea.value, status), 700);
+
+    const notesList = card.querySelector('.notes-list');
+    notesDuStagiaire.forEach((n) => addNoteItemToDom(notesList, n.id, n.texte));
+
+    card.querySelector('.add-note-btn').addEventListener('click', async () => {
+      try {
+        const res = await apiPost({ action: 'addNote', sessionId: currentSessionId, stagiaireId: st.id, texte: '' });
+        const item = addNoteItemToDom(notesList, res.id, '');
+        item.querySelector('textarea').focus();
+      } catch (err) {
+        alert('Erreur : ' + err.message);
+      }
     });
-    body.appendChild(tr);
+
+    list.appendChild(card);
   });
+
+  if (stagiaires.length === 0) {
+    list.innerHTML = '<p style="color:var(--ink-light)">Aucun stagiaire pour cette session.</p>';
+  }
 }
 
-async function saveNote(stagiaireId, note, statusEl) {
+function addNoteItemToDom(notesList, noteId, texte) {
+  const item = document.createElement('div');
+  item.className = 'note-item';
+  item.innerHTML = `
+    <div style="flex:1;">
+      <textarea placeholder="Ex. manque TS ou CGV signé…">${escapeHtml(texte || '')}</textarea>
+      <div class="note-status"></div>
+    </div>
+    <button type="button" class="note-delete-btn" title="Supprimer cette info">✕</button>
+  `;
+  notesList.appendChild(item);
+
+  const textarea = item.querySelector('textarea');
+  const status = item.querySelector('.note-status');
+  let timer;
+  textarea.addEventListener('input', () => {
+    clearTimeout(timer);
+    status.textContent = '…';
+    timer = setTimeout(() => saveNoteItem(noteId, textarea.value, status), 700);
+  });
+
+  item.querySelector('.note-delete-btn').addEventListener('click', async () => {
+    if (!confirm('Supprimer cette info ?')) return;
+    try {
+      await apiPost({ action: 'deleteNote', sessionId: currentSessionId, noteId });
+      item.remove();
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+    }
+  });
+
+  return item;
+}
+
+async function saveNoteItem(noteId, texte, statusEl) {
   try {
-    await apiPost({ action: 'updateNote', sessionId: currentSessionId, stagiaireId, note });
+    await apiPost({ action: 'updateNoteItem', sessionId: currentSessionId, noteId, texte });
     statusEl.textContent = 'Enregistré ✓';
     setTimeout(() => { if (statusEl.textContent === 'Enregistré ✓') statusEl.textContent = ''; }, 2000);
   } catch (err) {
