@@ -69,13 +69,33 @@
   .panel h2{font-size:1.05rem; color:var(--sage-dark); margin-bottom:12px;}
 
   /* --- Cartes stagiaires --- */
-  .stagiaires-list{display:flex; flex-direction:column; gap:14px;}
-  .stagiaire-card{
-    background:var(--sand); border-radius:10px; padding:14px 16px;
+  .stagiaire-search{
+    width:100%; border:1px solid var(--sand-dark); border-radius:8px; padding:8px 11px;
+    font-family:inherit; font-size:0.9rem; margin-bottom:12px; background:var(--white);
   }
-  .stagiaire-card h4{
-    font-family:'Work Sans',sans-serif; font-weight:600; font-size:0.98rem; margin-bottom:10px;
+  .stagiaire-search:focus{outline:2px solid var(--sage);}
+  .stagiaires-list{
+    display:flex; flex-direction:column; gap:10px;
+    max-height:460px; overflow-y:auto; padding-right:4px;
   }
+  .stagiaire-card{background:var(--sand); border-radius:10px; overflow:hidden;}
+  .stagiaire-card-header{
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    padding:12px 16px; cursor:pointer; user-select:none;
+  }
+  .stagiaire-card-header h4{
+    font-family:'Work Sans',sans-serif; font-weight:600; font-size:0.95rem;
+  }
+  .stagiaire-card-header .chevron{color:var(--ink-light); font-size:0.8rem; transition:transform .15s;}
+  .stagiaire-card.open .chevron{transform:rotate(90deg);}
+  .note-badge{
+    background:var(--terra); color:var(--white); font-size:0.72rem; font-weight:600;
+    border-radius:999px; padding:2px 9px; margin-left:8px;
+  }
+  .stagiaire-card-body{
+    display:none; padding:0 16px 14px;
+  }
+  .stagiaire-card.open .stagiaire-card-body{display:block;}
   .notes-list{display:flex; flex-direction:column; gap:10px;}
   .note-item{
     background:var(--white); border:1px solid var(--sand-dark); border-radius:8px;
@@ -155,6 +175,7 @@
     <div class="layout">
       <div class="panel">
         <h2>Stagiaires</h2>
+        <input type="text" id="stagiaireSearch" class="stagiaire-search" placeholder="Rechercher un stagiaire…">
         <div class="stagiaires-list" id="stagiairesList"></div>
       </div>
 
@@ -310,16 +331,27 @@ function renderStagiaires(stagiaires, notes) {
 
     const card = document.createElement('div');
     card.className = 'stagiaire-card';
+    card.dataset.nom = nomComplet.toLowerCase();
     card.innerHTML = `
-      <h4>${escapeHtml(nomComplet)}</h4>
-      <div class="notes-list"></div>
-      <button type="button" class="add-note-btn" style="margin-top:10px;">+ Ajouter une info</button>
+      <div class="stagiaire-card-header">
+        <h4>${escapeHtml(nomComplet)}${notesDuStagiaire.length > 0 ? `<span class="note-badge">${notesDuStagiaire.length}</span>` : ''}</h4>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="stagiaire-card-body">
+        <div class="notes-list"></div>
+        <button type="button" class="add-note-btn" style="margin-top:10px;">+ Ajouter une info</button>
+      </div>
     `;
+
+    card.querySelector('.stagiaire-card-header').addEventListener('click', () => {
+      card.classList.toggle('open');
+    });
 
     const notesList = card.querySelector('.notes-list');
     notesDuStagiaire.forEach((n) => addNoteItemToDom(notesList, n.id, n.texte));
 
-    card.querySelector('.add-note-btn').addEventListener('click', async () => {
+    card.querySelector('.add-note-btn').addEventListener('click', async (e) => {
+      e.stopPropagation();
       try {
         const res = await apiPost({ action: 'addNote', sessionId: currentSessionId, stagiaireId: st.id, texte: '' });
         const item = addNoteItemToDom(notesList, res.id, '');
@@ -335,6 +367,17 @@ function renderStagiaires(stagiaires, notes) {
   if (stagiaires.length === 0) {
     list.innerHTML = '<p style="color:var(--ink-light)">Aucun stagiaire pour cette session.</p>';
   }
+
+  el('stagiaireSearch').value = '';
+}
+
+function filtrerStagiaires(terme) {
+  const t = terme.trim().toLowerCase();
+  document.querySelectorAll('.stagiaire-card').forEach((card) => {
+    const visible = !t || card.dataset.nom.includes(t);
+    card.classList.toggle('hidden', !visible);
+    if (t && visible) card.classList.add('open');
+  });
 }
 
 function addNoteItemToDom(notesList, noteId, texte) {
@@ -456,6 +499,7 @@ el('sendBtn').addEventListener('click', sendMessage);
 el('messageInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) sendMessage();
 });
+el('stagiaireSearch').addEventListener('input', (e) => filtrerStagiaires(e.target.value));
 
 init();
 </script>
