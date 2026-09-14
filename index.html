@@ -593,7 +593,11 @@ async function sendMessage() {
   const texte = input.value.trim();
   if (!texte && !selectedFile) return;
 
+  const texteEnvoye = texte;
+  const nomFichierEnvoye = selectedFile ? selectedFile.nom : null;
+
   btn.disabled = true;
+  let erreurEnvoi = null;
   try {
     const payload = {
       action: 'postMessage',
@@ -607,14 +611,33 @@ async function sendMessage() {
       payload.fichierType = selectedFile.type;
     }
     await apiPost(payload);
-    input.value = '';
-    notify.checked = false;
-    el('fileInput').value = '';
-    clearSelectedFile();
-    const data = await apiGet('getSessionDetail', { sessionId: currentSessionId });
-    renderMessages(data.messages);
   } catch (err) {
-    alert('Erreur : ' + err.message);
+    // Avec une pièce jointe + un email à envoyer, le traitement côté serveur
+    // peut prendre du temps et la réponse revenir sous une forme inattendue,
+    // même si Google a bien terminé le travail. On ne conclut donc pas tout
+    // de suite à un échec : on vérifie juste en dessous si le message est
+    // quand même arrivé dans le fil avant d'alerter.
+    erreurEnvoi = err;
+  }
+
+  try {
+    const data = await apiGet('getSessionDetail', { sessionId: currentSessionId });
+    const vraimentEnvoye = data.messages.some((m) =>
+      m.auteur_nom === viewerNom &&
+      m.texte === texteEnvoye &&
+      (!nomFichierEnvoye || m.fichier_nom === nomFichierEnvoye)
+    );
+    renderMessages(data.messages);
+    if (vraimentEnvoye) {
+      input.value = '';
+      notify.checked = false;
+      el('fileInput').value = '';
+      clearSelectedFile();
+    } else if (erreurEnvoi) {
+      alert('Erreur : ' + erreurEnvoi.message);
+    }
+  } catch (err) {
+    alert('Erreur : ' + (erreurEnvoi ? erreurEnvoi.message : err.message));
   } finally {
     btn.disabled = false;
   }
