@@ -111,6 +111,10 @@
   .note-status{font-size:0.72rem; color:var(--sage-dark); height:14px; margin-top:3px;}
 
   /* --- Messagerie --- */
+  .traite-toggle-btn{
+    display:block; background:none; border:none; color:var(--sage-dark); font-family:inherit;
+    font-size:0.82rem; text-decoration:underline; cursor:pointer; padding:0; margin-bottom:10px;
+  }
   .messages-list{
     display:flex; flex-direction:column; gap:10px; max-height:420px; overflow-y:auto;
     padding-right:4px; margin-bottom:14px;
@@ -215,6 +219,7 @@
 
       <div class="panel">
         <h2>Messages de la session</h2>
+        <button type="button" id="traiteToggleBtn" class="traite-toggle-btn hidden"></button>
         <div class="messages-list" id="messagesList"></div>
         <div class="compose">
           <textarea id="messageInput" placeholder="Écrire un message…"></textarea>
@@ -253,6 +258,8 @@ let viewerIsAdmin = false;
 let viewerNom = '';
 let selectedFile = null;
 const TAILLE_FICHIER_MAX = 8 * 1024 * 1024; // 8 Mo
+let lastMessages = [];
+let showTraite = false;
 
 const el = (id) => document.getElementById(id);
 
@@ -335,6 +342,7 @@ function renderSessionsList(sessions) {
 // ------------------------------------------------------------
 async function openSession(sessionId) {
   currentSessionId = sessionId;
+  showTraite = false;
   showState('loadingState');
   try {
     const data = await apiGet('getSessionDetail', { sessionId });
@@ -458,9 +466,23 @@ async function saveNote(stagiaireId, note, statusEl) {
 }
 
 function renderMessages(messages) {
+  lastMessages = messages;
   const list = el('messagesList');
   list.innerHTML = '';
+
+  const traiteCount = messages.filter((m) => m.traite).length;
+  const toggleBtn = el('traiteToggleBtn');
+  if (traiteCount > 0) {
+    toggleBtn.classList.remove('hidden');
+    toggleBtn.textContent = showTraite
+      ? `▾ Masquer les messages traités (${traiteCount})`
+      : `▸ Afficher les messages traités (${traiteCount})`;
+  } else {
+    toggleBtn.classList.add('hidden');
+  }
+
   messages.forEach((m) => {
+    if (m.traite && !showTraite) return; // repliés par défaut une fois traités
     // Une session peut avoir plusieurs responsables : on compare aussi le nom
     // pour que chacun ne voie ses propres messages qu'à droite, pas ceux d'un collègue.
     const mine = viewerIsAdmin
@@ -492,7 +514,7 @@ function renderMessages(messages) {
       try {
         await apiPost({ action: 'toggleMessageTraite', sessionId: currentSessionId, messageId: m.id, traite: val });
         m.traite = val;
-        div.classList.toggle('traite', val);
+        renderMessages(lastMessages);
       } catch (err) {
         traiteCheckbox.checked = !val;
         alert('Erreur : ' + err.message);
@@ -668,6 +690,10 @@ el('fileInput').addEventListener('change', handleFileChange);
 el('fileRemoveBtn').addEventListener('click', () => {
   el('fileInput').value = '';
   clearSelectedFile();
+});
+el('traiteToggleBtn').addEventListener('click', () => {
+  showTraite = !showTraite;
+  renderMessages(lastMessages);
 });
 
 init();
