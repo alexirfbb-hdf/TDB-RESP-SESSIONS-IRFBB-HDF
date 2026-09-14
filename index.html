@@ -147,6 +147,24 @@
   .send-btn:hover{background:var(--sage);}
   .send-btn:disabled{opacity:0.5; cursor:default;}
 
+  .file-row{display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap;}
+  .file-label{
+    cursor:pointer; color:var(--sage-dark); font-size:0.83rem; text-decoration:underline;
+  }
+  input[type="file"]#fileInput{
+    position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+    clip:rect(0,0,0,0); white-space:nowrap; border:0;
+  }
+  .file-name-label{font-size:0.83rem; color:var(--ink-light); word-break:break-all;}
+  .file-remove-btn{
+    background:none; border:none; color:var(--danger); cursor:pointer; font-size:0.85rem; padding:0;
+  }
+  .msg-attachment{
+    display:inline-flex; align-items:center; gap:5px; margin-top:6px; font-size:0.83rem;
+    text-decoration:none; color:inherit; border-bottom:1px dashed currentColor; padding-bottom:1px;
+  }
+  .msg-attachment:hover{opacity:0.8;}
+
   .state-msg{text-align:center; color:var(--ink-light); padding:40px 12px;}
   .state-msg.error{color:var(--danger);}
 </style>
@@ -200,6 +218,12 @@
         <div class="messages-list" id="messagesList"></div>
         <div class="compose">
           <textarea id="messageInput" placeholder="Écrire un message…"></textarea>
+          <div class="file-row">
+            <label class="file-label" for="fileInput">📎 Joindre un fichier</label>
+            <input type="file" id="fileInput">
+            <span class="file-name-label" id="fileNameLabel"></span>
+            <button type="button" class="file-remove-btn hidden" id="fileRemoveBtn">✕ retirer</button>
+          </div>
           <div class="compose-row">
             <label class="notify-check">
               <input type="checkbox" id="notifyCheck">
@@ -227,6 +251,8 @@ const TOKEN = params.get('token');
 let currentSessionId = null;
 let viewerIsAdmin = false;
 let viewerNom = '';
+let selectedFile = null;
+const TAILLE_FICHIER_MAX = 8 * 1024 * 1024; // 8 Mo
 
 const el = (id) => document.getElementById(id);
 
@@ -451,7 +477,8 @@ function renderMessages(messages) {
 
     const texteEl = document.createElement('div');
     texteEl.className = 'msg-text';
-    texteEl.textContent = m.texte;
+    texteEl.textContent = m.texte || '';
+    if (!m.texte) texteEl.classList.add('hidden');
 
     const controls = document.createElement('div');
     controls.className = 'msg-controls';
@@ -486,6 +513,17 @@ function renderMessages(messages) {
 
     div.appendChild(meta);
     div.appendChild(texteEl);
+
+    if (m.fichier_url) {
+      const attach = document.createElement('a');
+      attach.className = 'msg-attachment';
+      attach.href = m.fichier_url;
+      attach.target = '_blank';
+      attach.rel = 'noopener';
+      attach.textContent = '📎 ' + (m.fichier_nom || 'Fichier joint');
+      div.appendChild(attach);
+    }
+
     div.appendChild(controls);
     list.appendChild(div);
   });
@@ -531,24 +569,68 @@ async function sendMessage() {
   const notify = el('notifyCheck');
   const btn = el('sendBtn');
   const texte = input.value.trim();
-  if (!texte) return;
+  if (!texte && !selectedFile) return;
 
   btn.disabled = true;
   try {
-    await apiPost({
+    const payload = {
       action: 'postMessage',
       sessionId: currentSessionId,
       texte,
       notifier: notify.checked
-    });
+    };
+    if (selectedFile) {
+      payload.fichierBase64 = selectedFile.base64;
+      payload.fichierNom = selectedFile.nom;
+      payload.fichierType = selectedFile.type;
+    }
+    await apiPost(payload);
     input.value = '';
     notify.checked = false;
+    el('fileInput').value = '';
+    clearSelectedFile();
     const data = await apiGet('getSessionDetail', { sessionId: currentSessionId });
     renderMessages(data.messages);
   } catch (err) {
     alert('Erreur : ' + err.message);
   } finally {
     btn.disabled = false;
+  }
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = () => reject(new Error('Lecture du fichier impossible.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function clearSelectedFile() {
+  selectedFile = null;
+  el('fileNameLabel').textContent = '';
+  el('fileRemoveBtn').classList.add('hidden');
+}
+
+async function handleFileChange(e) {
+  const file = e.target.files[0];
+  if (!file) { clearSelectedFile(); return; }
+  if (file.size > TAILLE_FICHIER_MAX) {
+    alert('Fichier trop volumineux (8 Mo maximum). Choisis un fichier plus léger.');
+    e.target.value = '';
+    clearSelectedFile();
+    return;
+  }
+  try {
+    const base64 = await fileToBase64(file);
+    selectedFile = { base64, nom: file.name, type: file.type || 'application/octet-stream' };
+    el('fileNameLabel').textContent = file.name;
+    el('fileRemoveBtn').classList.remove('hidden');
+  } catch (err) {
+    alert(err.message);
+    e.target.value = '';
+    clearSelectedFile();
   }
 }
 
@@ -582,6 +664,11 @@ el('messageInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) sendMessage();
 });
 el('stagiaireSearch').addEventListener('input', (e) => filtrerStagiaires(e.target.value));
+el('fileInput').addEventListener('change', handleFileChange);
+el('fileRemoveBtn').addEventListener('click', () => {
+  el('fileInput').value = '';
+  clearSelectedFile();
+});
 
 init();
 </script>
