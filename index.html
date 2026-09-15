@@ -204,6 +204,7 @@
         <a href="#" id="planningLink" class="devoirs-link hidden" target="_blank" rel="noopener">🗓️ Planning</a>
         <a href="#" id="assiduiteLink" class="devoirs-link hidden" target="_blank" rel="noopener">✅ Assiduité</a>
         <a href="#" id="kalisportLink" class="devoirs-link hidden" target="_blank" rel="noopener">🏀 Kalisport</a>
+        <a href="#" id="teachupLink" class="devoirs-link hidden" target="_blank" rel="noopener">🎓 Teach Up</a>
       </div>
     </div>
 
@@ -365,6 +366,7 @@ function renderSessionDetail(data) {
   setHeaderLink('planningLink', session.lien_planning);
   setHeaderLink('assiduiteLink', session.lien_assiduite);
   setHeaderLink('kalisportLink', session.lien_kalisport);
+  setHeaderLink('teachupLink', session.lien_teachup);
 
   renderStagiaires(stagiaires);
   renderMessages(messages);
